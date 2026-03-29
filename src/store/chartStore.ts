@@ -1,6 +1,22 @@
 import { create } from 'zustand';
 import { ChartResult, ThemeMode, PeriodType } from '@/types';
 
+interface ChartStore {
+  chart: ChartResult | null;
+  theme: ThemeMode;
+  selectedPalace: number | null;
+  selectedPeriod: PeriodType;
+  fortuneYear: number;
+  isLoading: boolean;
+  setChart: (chart: ChartResult | null) => void;
+  setTheme: (theme: ThemeMode) => void;
+  setSelectedPalace: (id: number | null) => void;
+  setSelectedPeriod: (period: PeriodType) => void;
+  setFortuneYear: (year: number) => void;
+  setLoading: (loading: boolean) => void;
+  reset: () => void;
+}
+
 const initialState = {
   chart: null as ChartResult | null,
   theme: 'professional' as ThemeMode,
@@ -10,7 +26,7 @@ const initialState = {
   isLoading: false,
 };
 
-export const useChartStore = create((set) => ({
+export const useChartStore = create<ChartStore>((set) => ({
   ...initialState,
   setChart: (chart) => set({ chart }),
   setTheme: (theme) => set({ theme }),
