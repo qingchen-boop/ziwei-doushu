@@ -10,6 +10,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,17 +29,12 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
-      - name: Verify output
-        run: |
-          echo "=== out/ directory ===" && ls -la out/
-          echo "=== index.html exists ===" && test -f out/index.html && echo "YES" || echo "NO"
-          echo "=== _next/ directory ===" && ls -la out/_next/ 2>/dev/null | head -5
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: out
+          path: .next/static
 
   deploy:
     environment:
