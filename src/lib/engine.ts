@@ -63,7 +63,7 @@ export class ZiWeiEngine {
     this.sect = birthInfo.sect || 'nan';
     const [year, month, day] = birthInfo.birthDate.split('-').map(Number);
     const [hour, minute] = birthInfo.birthTime.split(':').map(Number);
-    this.solarDate = new Solar(year, month, day, hour, minute);
+    this.solarDate = Solar.fromYmdHms(year, month, day, hour, minute, 0);
     this.lunarDate = this.solarDate.getLunar();
   }
 
@@ -158,7 +158,7 @@ export class ZiWeiEngine {
   calculateDaYun(startAge: number, gender: Gender, mingGong: number): DaYunInfo[] {
     const result: DaYunInfo[] = [];
     const stemIndex = this.getStemIndex(this.solarDate.getDate());
-    const branchIndex = EARTHLY_BRANCHES.indexOf(this.lunarDate.getShengXiao() || '子');
+    const branchIndex = EARTHLY_BRANCHES.indexOf(this.lunarDate.getShengxiao() || '子');
     const isForward = (gender === 'male' && stemIndex % 2 === 0) || (gender === 'female' && stemIndex % 2 === 1);
     let currentPalace = mingGong, currentStemIndex = stemIndex;
     for (let i = 0; i < 10; i++) {
