@@ -71,6 +71,10 @@ export class ZiWeiEngine {
     return ((date.getFullYear() - 1984) % 10 + 10) % 10;
   }
 
+  private getJsDate(): Date {
+    return new Date(this.solarDate.getYear(), this.solarDate.getMonth() - 1, this.solarDate.getDay(), this.solarDate.getHour(), this.solarDate.getMinute());
+  }
+
   private calculateMingGong(lunarMonth: number, birthHour: number, wuXingJu: number): number {
     const birthHourPalace = ((1 + birthHour - 1) % 12) + 1;
     const birthMonthPalace = ((2 + lunarMonth - 2) % 12) + 1;
@@ -88,7 +92,7 @@ export class ZiWeiEngine {
       return {
         id: i + 1,
         name: PALACE_NAMES[i],
-        stem: HEAVENLY_STEMS[(this.getStemIndex(this.solarDate.getDate()) + i) % 10],
+        stem: HEAVENLY_STEMS[(this.getStemIndex(this.getJsDate()) + i) % 10],
         branch: EARTHLY_BRANCHES[branchIndex],
         mainStars: [], secondaryStars: [], mdaStars: [], transformStars: [],
         angularPalaces: [(((i + 1) + 5) % 12) + 1, (((i + 1) + 10) % 12) + 1, (((i + 1)) % 12) + 1],
@@ -110,7 +114,7 @@ export class ZiWeiEngine {
   }
 
   private placeSecondaryStars(palaces: Palace[]): void {
-    const yearGan = HEAVENLY_STEMS[this.getStemIndex(this.solarDate.getDate())];
+    const yearGan = HEAVENLY_STEMS[this.getStemIndex(this.getJsDate())];
     const yearZhi = EARTHLY_BRANCHES[this.lunarDate.getYear() % 12];
     const zuoYouTable: Record<string, number[]> = { '甲': [1, 2], '乙': [2, 3], '丙': [3, 4], '丁': [4, 5], '戊': [5, 6], '己': [6, 7], '庚': [7, 8], '辛': [8, 9], '壬': [9, 10], '癸': [10, 11] };
     (zuoYouTable[yearGan] || [1, 2]).forEach((pos, idx) => {
@@ -157,7 +161,7 @@ export class ZiWeiEngine {
 
   calculateDaYun(startAge: number, gender: Gender, mingGong: number): DaYunInfo[] {
     const result: DaYunInfo[] = [];
-    const stemIndex = this.getStemIndex(this.solarDate.getDate());
+    const stemIndex = this.getStemIndex(this.getJsDate());
     const branchIndex = EARTHLY_BRANCHES.indexOf(this.lunarDate.getShengxiao() || '子');
     const isForward = (gender === 'male' && stemIndex % 2 === 0) || (gender === 'female' && stemIndex % 2 === 1);
     let currentPalace = mingGong, currentStemIndex = stemIndex;
@@ -172,8 +176,8 @@ export class ZiWeiEngine {
   }
 
   calculate(): ChartResult {
-    const hour = this.solarDate.getDate().getHours();
-    const yearGanIndex = this.getStemIndex(this.solarDate.getDate());
+    const hour = this.getJsDate().getHours();
+    const yearGanIndex = this.getStemIndex(this.getJsDate());
     const yearGan = HEAVENLY_STEMS[yearGanIndex];
     const wuXingJu = WU_XING_JU[yearGan];
     const mingGong = this.calculateMingGong(this.lunarDate.getMonth(), hour, wuXingJu.value);
