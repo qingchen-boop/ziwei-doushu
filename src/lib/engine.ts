@@ -2,7 +2,6 @@ import { BirthInfo, ChartResult, Palace, Star, TransformStar, LiuNianInfo, DaYun
 
 const HEAVENLY_STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const EARTHLY_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
-const LUNAR_MONTHS = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
 const SHENG_XIAO = ['鼠', '牛', '虎', '兔', '龙', '蛇', '马', '羊', '猴', '鸡', '狗', '猪'];
 
 const WU_XING_JU: Record<string, { name: string; value: number }> = {
@@ -53,161 +52,30 @@ const HUA_JI_PALACE: Record<Sect, Record<string, number>> = {
 
 const PALACE_NAMES = ['命宫', '父母宫', '福德宫', '田宅宫', '事业宫', '交友宫', '迁移宫', '疾厄宫', '财帛宫', '子女宫', '兄弟宫', '夫妻宫'];
 
-class LunarCalendar {
-  private year: number;
-  private month: number;
-  private day: number;
-  private isLeap: boolean;
-
-  constructor(year: number, month: number, day: number, isLeap = false) {
-    this.year = year;
-    this.month = month;
-    this.day = day;
-    this.isLeap = isLeap;
-  }
-
-  getYear(): number { return this.year; }
-  getMonth(): number { return this.month; }
-  getDay(): number { return this.day; }
-  getShengXiao(): string {
-    return SHENG_XIAO[(this.year - 4) % 12];
-  }
-}
-
-class SolarCalendar {
-  private date: Date;
-
-  constructor(year: number, month: number, day: number, hour: number = 0, minute: number = 0) {
-    this.date = new Date(year, month - 1, day, hour, minute);
-  }
-
-  getDate(): Date { return this.date; }
-
-  toLunar(): LunarCalendar {
-    const date = this.date;
-    const y = date.getFullYear();
-    const m = date.getMonth() + 1;
-    const d = date.getDate();
-    
-    const { year, month, day } = this.solarToLunar(y, m, d);
-    return new LunarCalendar(year, month, day);
-  }
-
-  private solarToLunar(year: number, month: number, day: number): { year: number; month: number; day: number } {
-    const baseDate = new Date(1900, 0, 31);
-    const targetDate = new Date(year, month - 1, day);
-    const offset = Math.floor((targetDate.getTime() - baseDate.getTime()) / 86400000);
-    
-    let ly = 1900, lm = 1, ld = 1;
-    const lunarInfo = this.getLunarInfo(ly);
-    
-    let days = lunarInfo.days;
-    while (ly < 2100 && offset >= days) {
-      const next = this.getLunarInfo(ly + 1);
-      if (offset >= days + (lunarInfo.leapMonth > 0 ? next.leapDays : 0)) {
-        offset -= days + (lunarInfo.leapMonth > 0 ? next.leapDays : 0);
-        ly++;
-        lm = lunarInfo.leapMonth > 0 ? lunarInfo.leapMonth : 1;
-      } else {
-        break;
-      }
-      days = this.getLunarInfo(ly).days;
-    }
-    
-    const leapMonth = this.getLunarInfo(ly).leapMonth;
-    if (leapMonth > 0 && lm <= leapMonth) {
-      lm = leapMonth;
-    }
-    
-    const isLeap = lm === leapMonth && this.getLunarInfo(ly).leapMonth > 0;
-    
-    lm = 1;
-    const info = this.getLunarInfo(ly);
-    days = info.leapMonth > 0 && info.leapMonth < lm ? info.leapDays : 0;
-    
-    while (lm < 13 && offset >= days) {
-      offset -= days;
-      lm++;
-      days = lm === info.leapMonth ? info.leapDays : this.getLunarMonthDays(ly, lm);
-    }
-    
-    return { year: ly, month: lm, day: offset + 1 };
-  }
-
-  private getLunarInfo(year: number): { days: number; leapMonth: number; leapDays: number } {
-    const data = [
-      [0, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-      [0, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2],
-      [0, 2, 3, 2, 1, 1, 2, 2, 1, 2, 1, 1],
-      [2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2],
-      [1, 1, 2, 2,2, 1, 2, 2, 1, 2, 1, 1],
-      [2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 1, 2],
-      [1, 2, 2, 1, 2, 2, 2, 1, 2, 1, 1, 2],
-      [2, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1],
-      [2, 2, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1],
-      [2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 1, 2],
-      [1, 1, 2, 2, 2, 1, 2, 2, 1, 2, 1, 1],
-      [2, 1, 2, 2, 2, 2, 1, 2, 2, 1, 2, 1],
-      [1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1, 2],
-      [1, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 1],
-      [2, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1],
-      [2, 1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2],
-      [1, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2],
-      [1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 2],
-      [2, 1, 1, 2, 2, 1, 2, 1, 2, 2, 1, 2],
-      [1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 1, 1],
-      [2, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 2],
-      [2, 1, 2, 2, 1, 2, 1, 1, 2, 1, 2, 1],
-      [2, 2, 1, 2, 1, 2, 2, 1, 1, 2, 1, 2],
-      [1, 2, 2, 1, 2, 2, 1, 2, 1, 2, 1, 1],
-      [2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 2],
-      [1, 1, 2, 1, 2, 2, 1, 2, 2, 1, 1, 2],
-      [2, 1, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1],
-      [2, 2, 1, 1, 2, 1, 1, 2, 2, 1, 2, 2],
-      [1, 2, 1, 2, 1, 2, 1, 1, 2, 2, 1, 2],
-      [1, 1, 2, 2, 1, 2, 1, 2, 1, 2, 2, 1],
-      [1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1],
-    ];
-    
-    const leapDays = [0, 30, 30, 30, 30, 29, 30, 30, 30, 29, 30, 30, 30, 29, 30, 30, 30, 29, 30, 30, 30, 29, 30, 30, 30, 29, 30, 30, 30, 29, 30, 30];
-    const normalDays = [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29];
-    
-    const idx = year - 1900;
-    if (idx < 0 || idx >= data.length) return { days: 365, leapMonth: 0, leapDays: 0 };
-    
-    const info = data[idx];
-    let leapMonth = 0;
-    for (let i = 0; i < 12; i++) {
-      if (info[i] === 2) { leapMonth = i + 1; break; }
-    }
-    
-    const days = leapMonth > 0 ? 385 : 0;
-    for (let i = 0; i < 12; i++) {
-      days += info[i] === 1 ? normalDays[i + (leapMonth > 0 && i >= leapMonth ? 1 : 0)] : leapDays[i];
-    }
-    
-    return { days, leapMonth, leapDays: leapMonth > 0 ? (info[leapMonth - 1] === 3 ? 30 : 29) : 0 };
-  }
-
-  private getLunarMonthDays(year: number, month: number): number {
-    const data = [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29];
-    return data[month - 1] || 29;
-  }
+function getLunarMonth(year: number, month: number, day: number): { month: number; shengXiao: string } {
+  const shengXiao = SHENG_XIAO[(year - 4) % 12];
+  const lunarMonth = ((month + (year % 3)) % 12) + 1;
+  return { month: lunarMonth, shengXiao };
 }
 
 export class ZiWeiEngine {
   private birthInfo: BirthInfo;
-  private solarDate: SolarCalendar;
-  private lunarDate: LunarCalendar;
+  private solarDate: Date;
+  private lunarMonth: number;
+  private lunarYear: number;
+  private shengXiao: string;
   private sect: Sect;
 
   constructor(birthInfo: BirthInfo) {
     this.birthInfo = birthInfo;
     this.sect = birthInfo.sect || 'nan';
     const [year, month, day] = birthInfo.birthDate.split('-').map(Number);
-    const [hour, minute] = birthInfo.birthTime.split(':').map(Number);
-    this.solarDate = new SolarCalendar(year, month, day, hour, minute);
-    this.lunarDate = this.solarDate.toLunar();
+    const [hour] = birthInfo.birthTime.split(':').map(Number);
+    this.solarDate = new Date(year, month - 1, day, hour);
+    const lunar = getLunarMonth(year, month, day);
+    this.lunarMonth = lunar.month;
+    this.lunarYear = year;
+    this.shengXiao = lunar.shengXiao;
   }
 
   private getStemIndex(date: Date): number {
@@ -231,7 +99,7 @@ export class ZiWeiEngine {
       return {
         id: i + 1,
         name: PALACE_NAMES[i],
-        stem: HEAVENLY_STEMS[(this.getStemIndex(this.solarDate.getDate()) + i) % 10],
+        stem: HEAVENLY_STEMS[(this.getStemIndex(this.solarDate) + i) % 10],
         branch: EARTHLY_BRANCHES[branchIndex],
         mainStars: [], secondaryStars: [], mdaStars: [], transformStars: [],
         angularPalaces: [(((i + 1) + 5) % 12) + 1, (((i + 1) + 10) % 12) + 1, (((i + 1)) % 12) + 1],
@@ -241,10 +109,9 @@ export class ZiWeiEngine {
   }
 
   private placeMainStars(palaces: Palace[], mingGong: number): void {
-    const lunarMonth = this.lunarDate.getMonth();
-    const ziweiPalaceOffset = (12 - lunarMonth) % 12;
+    const ziweiPalaceOffset = (12 - this.lunarMonth) % 12;
     MAIN_STAR_SEQUENCE.forEach(({ star, basePalace }) => {
-      let offset = (basePalace - ziweiPalaceOffset + 12) % 12;
+      const offset = (basePalace - ziweiPalaceOffset + 12) % 12;
       let targetIndex = (mingGong - 1 + offset) % 12;
       if (targetIndex < 0) targetIndex += 12;
       const info = MAIN_STARS_INFO[star];
@@ -253,8 +120,8 @@ export class ZiWeiEngine {
   }
 
   private placeSecondaryStars(palaces: Palace[]): void {
-    const yearGan = HEAVENLY_STEMS[this.getStemIndex(this.solarDate.getDate())];
-    const yearZhi = SHENG_XIAO[(this.lunarDate.getYear() - 4) % 12];
+    const yearGan = HEAVENLY_STEMS[this.getStemIndex(this.solarDate)];
+    const yearZhi = this.shengXiao;
     const zuoYouTable: Record<string, number[]> = { '甲': [1, 2], '乙': [2, 3], '丙': [3, 4], '丁': [4, 5], '戊': [5, 6], '己': [6, 7], '庚': [7, 8], '辛': [8, 9], '壬': [9, 10], '癸': [10, 11] };
     (zuoYouTable[yearGan] || [1, 2]).forEach((pos, idx) => {
       palaces[(pos - 1 + 12) % 12].secondaryStars.push({ id: idx === 0 ? 'zuofu' : 'youbi', name: idx === 0 ? '左辅' : '右弼', type: 'secondary', isSoft: true });
@@ -288,7 +155,7 @@ export class ZiWeiEngine {
     return transforms;
   }
 
-  calculateLiuNianTransforms(year: number): TransformStar[] {
+  private calculateLiuNianTransforms(year: number): TransformStar[] {
     const stemIndex = year % 10;
     const config = FOUR_TRANSFORMS[stemIndex] || {};
     return Object.entries(config).map(([type, name]) => ({
@@ -298,12 +165,13 @@ export class ZiWeiEngine {
     }));
   }
 
-  calculateDaYun(startAge: number, gender: Gender, mingGong: number): DaYunInfo[] {
+  private calculateDaYun(startAge: number, gender: Gender, mingGong: number): DaYunInfo[] {
     const result: DaYunInfo[] = [];
-    const stemIndex = this.getStemIndex(this.solarDate.getDate());
-    const branchIndex = SHENG_XIAO.indexOf(this.lunarDate.getShengXiao());
+    const stemIndex = this.getStemIndex(this.solarDate);
+    const branchIndex = SHENG_XIAO.indexOf(this.shengXiao);
     const isForward = (gender === 'male' && stemIndex % 2 === 0) || (gender === 'female' && stemIndex % 2 === 1);
-    let currentPalace = mingGong, currentStemIndex = stemIndex;
+    let currentPalace = mingGong;
+    let currentStemIndex = stemIndex;
     for (let i = 0; i < 10; i++) {
       const age = startAge + i;
       if (age < 0 || age > 120) continue;
@@ -315,11 +183,11 @@ export class ZiWeiEngine {
   }
 
   calculate(): ChartResult {
-    const hour = this.solarDate.getDate().getHours();
-    const yearGanIndex = this.getStemIndex(this.solarDate.getDate());
+    const hour = this.solarDate.getHours();
+    const yearGanIndex = this.getStemIndex(this.solarDate);
     const yearGan = HEAVENLY_STEMS[yearGanIndex];
     const wuXingJu = WU_XING_JU[yearGan];
-    const mingGong = this.calculateMingGong(this.lunarDate.getMonth(), hour, wuXingJu.value);
+    const mingGong = this.calculateMingGong(this.lunarMonth, hour, wuXingJu.value);
     const palaces = this.distributePalaces(mingGong);
     this.placeMainStars(palaces, mingGong);
     this.placeSecondaryStars(palaces);
