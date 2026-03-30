@@ -1,5 +1,5 @@
 import { BirthInfo, ChartResult, Palace, Star, TransformStar, LiuNianInfo, DaYunInfo, Gender, Sect } from '@/types';
-import { Lunar, Solar } from 'lunar-javascript';
+import { solarToLunar, getYearGanZhi } from './lunar-converter';
 
 const HEAVENLY_STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const EARTHLY_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
@@ -54,25 +54,29 @@ const PALACE_NAMES = ['命宫', '父母宫', '福德宫', '田宅宫', '事业�
 
 export class ZiWeiEngine {
   private birthInfo: BirthInfo;
-  private solarDate: Solar;
-  private lunarDate: Lunar;
+  private year: number;
+  private month: number;
+  private day: number;
+  private hour: number;
+  private minute: number;
+  private lunarData: ReturnType<typeof solarToLunar>;
   private sect: Sect;
 
   constructor(birthInfo: BirthInfo) {
     this.birthInfo = birthInfo;
     this.sect = birthInfo.sect || 'nan';
-    const [year, month, day] = birthInfo.birthDate.split('-').map(Number);
-    const [hour, minute] = birthInfo.birthTime.split(':').map(Number);
-    this.solarDate = Solar.fromYmdHms(year, month, day, hour, minute, 0);
-    this.lunarDate = this.solarDate.getLunar();
+    const [y, mo, d] = birthInfo.birthDate.split('-').map(Number);
+    const [h, mi] = birthInfo.birthTime.split(':').map(Number);
+    this.year = y;
+    this.month = mo;
+    this.day = d;
+    this.hour = h;
+    this.minute = mi;
+    this.lunarData = solarToLunar(y, mo, d);
   }
 
-  private getStemIndex(date: Date): number {
-    return ((date.getFullYear() - 1984) % 10 + 10) % 10;
-  }
-
-  private getJsDate(): Date {
-    return new Date(this.solarDate.getYear(), this.solarDate.getMonth() - 1, this.solarDate.getDay(), this.solarDate.getHour(), this.solarDate.getMinute());
+  private getStemIndex(lunarYear: number): number {
+    return ((lunarYear - 1984) % 10 + 10) % 10;
   }
 
   private calculateMingGong(lunarMonth: number, birthHour: number, wuXingJu: number): number {
@@ -86,13 +90,14 @@ export class ZiWeiEngine {
   }
 
   private distributePalaces(mingGong: number): Palace[] {
+    const stemIndex = this.getStemIndex(this.lunarData.lunarYear);
     return Array.from({ length: 12 }, (_, i) => {
       const palacePosition = ((2 - mingGong + 12) % 12 + i) % 12;
       const branchIndex = (palacePosition + 1) % 12;
       return {
         id: i + 1,
         name: PALACE_NAMES[i],
-        stem: HEAVENLY_STEMS[(this.getStemIndex(this.getJsDate()) + i) % 10],
+        stem: HEAVENLY_STEMS[(stemIndex + i) % 10],
         branch: EARTHLY_BRANCHES[branchIndex],
         mainStars: [], secondaryStars: [], mdaStars: [], transformStars: [],
         angularPalaces: [(((i + 1) + 5) % 12) + 1, (((i + 1) + 10) % 12) + 1, (((i + 1)) % 12) + 1],
@@ -102,7 +107,7 @@ export class ZiWeiEngine {
   }
 
   private placeMainStars(palaces: Palace[], mingGong: number): void {
-    const lunarMonth = this.lunarDate.getMonth();
+    const lunarMonth = this.lunarData.lunarMonth;
     const ziweiPalaceOffset = (12 - lunarMonth) % 12;
     MAIN_STAR_SEQUENCE.forEach(({ star, basePalace }) => {
       let offset = (basePalace - ziweiPalaceOffset + 12) % 12;
@@ -114,21 +119,29 @@ export class ZiWeiEngine {
   }
 
   private placeSecondaryStars(palaces: Palace[]): void {
-    const yearGan = HEAVENLY_STEMS[this.getStemIndex(this.getJsDate())];
-    const yearZhi = EARTHLY_BRANCHES[this.lunarDate.getYear() % 12];
+    const stemIndex = this.getStemIndex(this.lunarData.lunarYear);
+    const yearGan = HEAVENLY_STEMS[stemIndex];
+    const yearZhi = this.lunarData.shengxiao;
+    const ZHI_MAP: Record<string, number> = {
+      '鼠': 0, '牛': 1, '虎': 2, '兔': 3, '龙': 4, '蛇': 5,
+      '马': 6, '羊': 7, '猴': 8, '鸡': 9, '狗': 10, '猪': 11
+    };
+    const yearZhiIndex = ZHI_MAP[yearZhi] ?? 0;
+
     const zuoYouTable: Record<string, number[]> = { '甲': [1, 2], '乙': [2, 3], '丙': [3, 4], '丁': [4, 5], '戊': [5, 6], '己': [6, 7], '庚': [7, 8], '辛': [8, 9], '壬': [9, 10], '癸': [10, 11] };
     (zuoYouTable[yearGan] || [1, 2]).forEach((pos, idx) => {
       palaces[(pos - 1 + 12) % 12].secondaryStars.push({ id: idx === 0 ? 'zuofu' : 'youbi', name: idx === 0 ? '左辅' : '右弼', type: 'secondary', isSoft: true });
     });
     const wenQuTable: Record<string, number> = { '子': 4, '丑': 5, '寅': 6, '卯': 7, '辰': 8, '巳': 9, '午': 10, '未': 11, '申': 12, '酉': 1, '戌': 2, '亥': 3 };
-    const wenChangPos = wenQuTable[yearZhi] || 4;
+    const yearZhiName = EARTHLY_BRANCHES[yearZhiIndex];
+    const wenChangPos = wenQuTable[yearZhiName] || 4;
     palaces[(wenChangPos - 1 + 12) % 12].secondaryStars.push({ id: 'wenchang', name: '文昌', type: 'secondary', isSoft: true });
     const wenQuPos = ((wenChangPos + 6) % 12) || 12;
     palaces[(wenQuPos - 1 + 12) % 12].secondaryStars.push({ id: 'wenqu', name: '文曲', type: 'secondary', isSoft: true });
     const luCunTable: Record<string, number> = { '甲': 2, '乙': 3, '丙': 4, '丁': 5, '戊': 6, '己': 7, '庚': 8, '辛': 9, '壬': 10, '癸': 11 };
     palaces[(luCunTable[yearGan] || 2) - 1].secondaryStars.push({ id: 'lucun', name: '禄存', type: 'secondary', isSoft: true });
     const tianMaTable: Record<string, number> = { '子': 9, '丑': 8, '寅': 7, '卯': 6, '辰': 5, '巳': 4, '午': 3, '未': 2, '申': 1, '酉': 12, '戌': 11, '亥': 10 };
-    palaces[(tianMaTable[yearZhi] || 9) - 1].mdaStars.push({ id: 'tianma', name: '天马', type: 'mda', isSoft: true });
+    palaces[(tianMaTable[yearZhiName] || 9) - 1].mdaStars.push({ id: 'tianma', name: '天马', type: 'mda', isSoft: true });
   }
 
   private calculateFourTransforms(palaces: Palace[], stemIndex: number): TransformStar[] {
@@ -161,8 +174,12 @@ export class ZiWeiEngine {
 
   calculateDaYun(startAge: number, gender: Gender, mingGong: number): DaYunInfo[] {
     const result: DaYunInfo[] = [];
-    const stemIndex = this.getStemIndex(this.getJsDate());
-    const branchIndex = EARTHLY_BRANCHES.indexOf(this.lunarDate.getShengxiao() || '子');
+    const stemIndex = this.getStemIndex(this.lunarData.lunarYear);
+    const ZHI_MAP: Record<string, number> = {
+      '鼠': 0, '牛': 1, '虎': 2, '兔': 3, '龙': 4, '蛇': 5,
+      '马': 6, '羊': 7, '猴': 8, '鸡': 9, '狗': 10, '猪': 11
+    };
+    const branchIndex = ZHI_MAP[this.lunarData.shengxiao] ?? 0;
     const isForward = (gender === 'male' && stemIndex % 2 === 0) || (gender === 'female' && stemIndex % 2 === 1);
     let currentPalace = mingGong, currentStemIndex = stemIndex;
     for (let i = 0; i < 10; i++) {
@@ -176,22 +193,31 @@ export class ZiWeiEngine {
   }
 
   calculate(): ChartResult {
-    const hour = this.getJsDate().getHours();
-    const yearGanIndex = this.getStemIndex(this.getJsDate());
-    const yearGan = HEAVENLY_STEMS[yearGanIndex];
+    const stemIndex = this.getStemIndex(this.lunarData.lunarYear);
+    const yearGan = HEAVENLY_STEMS[stemIndex];
     const wuXingJu = WU_XING_JU[yearGan];
-    const mingGong = this.calculateMingGong(this.lunarDate.getMonth(), hour, wuXingJu.value);
+    const mingGong = this.calculateMingGong(this.lunarData.lunarMonth, this.hour, wuXingJu.value);
     const palaces = this.distributePalaces(mingGong);
     this.placeMainStars(palaces, mingGong);
     this.placeSecondaryStars(palaces);
-    const fourTransforms = this.calculateFourTransforms(palaces, yearGanIndex);
+    const fourTransforms = this.calculateFourTransforms(palaces, stemIndex);
     const allStars: Star[] = palaces.flatMap(p => [...p.mainStars, ...p.secondaryStars, ...p.mdaStars]);
     const currentYear = new Date().getFullYear();
     const liuNian: LiuNianInfo[] = [];
     for (let y = currentYear - 5; y <= currentYear + 5; y++) {
-      liuNian.push({ year: y, ganZhi: HEAVENLY_STEMS[y % 10] + EARTHLY_BRANCHES[y % 12], palace: ((y - currentYear + mingGong - 1) % 12) + 1, transforms: this.calculateLiuNianTransforms(y), stars: [] });
+      liuNian.push({ year: y, ganZhi: getYearGanZhi(y), palace: ((y - currentYear + mingGong - 1) % 12) + 1, transforms: this.calculateLiuNianTransforms(y), stars: [] });
     }
-    return { birthInfo: this.birthInfo, mingGong, shenGong: this.calculateShenGong(mingGong, hour), mingGan: yearGan, wuXingJu: wuXingJu.name, chartData: { palaces, stars: allStars, fourTransforms }, liuNian, daYun: this.calculateDaYun(0, this.birthInfo.gender, mingGong), createdAt: new Date().toISOString() };
+    return {
+      birthInfo: this.birthInfo,
+      mingGong,
+      shenGong: this.calculateShenGong(mingGong, this.hour),
+      mingGan: yearGan,
+      wuXingJu: wuXingJu.name,
+      chartData: { palaces, stars: allStars, fourTransforms },
+      liuNian,
+      daYun: this.calculateDaYun(0, this.birthInfo.gender, mingGong),
+      createdAt: new Date().toISOString()
+    };
   }
 }
 
