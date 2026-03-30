@@ -2,8 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'export',
-  images: { unoptimized: true },
-  transpilePackages: ['lunar-javascript'],
+  basePath: '/ziwei-doushu',
 };
 
 module.exports = nextConfig;
